@@ -19,12 +19,15 @@ class ABSOptimizationMethod(object):
         # Decorate func to count number of calls
         func = self.function_calls_count(func)
         
-        result, iterations = self.optimization_method(func, bounds, *args, **kwargs)
+        result, iterations, *other = self.optimization_method(func, bounds, *args, **kwargs)
+        
+        self._log_result(result, func(result, ignore_call=True))
+        self._log_number_of_iterations(len(iterations))
         
         if self.is_plot:
             self._plot_it(func, iterations, *bounds)
             
-        return result
+        return result, iterations, *other
     
     def get_interval(self, func, x0, step=0.5):
         """Sven method"""
@@ -92,6 +95,10 @@ class ABSOptimizationMethod(object):
         print(f'\tx = {x:.5f}')
         print(f'\tf(x) = {y:.5f}')
         print(Fore.GREEN + 'Function calls:' + Style.RESET_ALL + str(self.function_calls))
+        
+    @_log_decorator
+    def _log_number_of_iterations(self, iters_num):
+        print(Fore.GREEN + 'Number of iterations:' + Style.RESET_ALL + str(iters_num))
             
     def _plot_it(self, func, iterations, l, r, steps = 1000):
         color_function = '#1050A8'

@@ -32,9 +32,8 @@ class DichotomyMethod(ABSOptimizationMethod):
         result = (l + r) / 2
         iterations.append(result)
         
-        # Логирование последней итерации и результата
+        # Логирование последней итерации
         self._log_iteration(idx, result, func(result, ignore_call=True), (r - l))
-        self._log_result(result, func(temp_x, ignore_call=True))
         
         return result, iterations
 

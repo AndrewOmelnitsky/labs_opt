@@ -1,174 +1,98 @@
 from typing import List, Tuple
 import math
 from scipy.optimize import fsolve
+import matplotlib.pyplot as plt
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
 
-def plot_optimization(func, bounds: Tuple[float, float], x):
-    l, r = bounds
-    x_values = np.linspace(l, r, 100)
-    y_values = list(map(func, x_values))
-    # fig = px.line(x=x_values, y=y_values, labels={'x': 'x', 'y': 'e^(x-5) + e^(5-x)'})
-    fig = px.line(x=x_values, y=y_values, labels={'x': 'x', 'y': 'f(x)'})
-    fig.update_traces(line=dict(width=4))
-    y_iter = list(map(func, x))
-    fig.add_trace(go.Scatter(
-        x=x,
-        y=y_iter,
-        mode="markers+text",
-        name='iteration',
-        marker_size=15,
-        text=[str(i+1) for i in range(len(x))])
-    )
-    fig.add_trace(go.Scatter(
-        x=[x[-1]],
-        y=[y_iter[-1]],
-        mode="markers",
-        name='extremum',
-        marker_size=15,
-        fillcolor="blue")
-    )
-    fig.update_traces(textposition='top center')
-    fig.show()
-    
-def golden_section_method(func, bounds: Tuple[float, float], eps: float, plot=False) -> float:
-    l, r = bounds
-    phi = (1 + math.sqrt(5)) / 2
-    x1, x2 = r - (r-l) / phi, l + (r-l) / phi
-    num_calc, interval_change, max_iter = 2, 0, 100
-    print('Golden Section Method:')
-    print(f'f(x) = e^(x-5) + e^(5-x), l = {l}, r = {r}')
-    x_k = (l+r) / 2
-    x = np.array([x_k])
-    print(f'Iteration {1}: length of interval = {(r-l):.5f}, x = {x_k:.5f}, f(x) = {func(x_k):.5f}')
-    fx1, fx2 = func(x1), func(x2)
-    
-    for i in range(max_iter):
-        if fx1 < fx2:
-            r = x2
-            x2 = x1
-            x1 = l + (r - x2)
-            fx2, fx1 = fx1, func(x1)
-        else:
-            l = x1
-            x1 = x2
-            x2 = r - (x1 - l)
-            fx1, fx2 = fx2, func(x2)
-        
-        interval_change += 1
-        x_k = (l + r) / 2
-        x = np.append(x, x_k)
-        num_calc += 1
-        print(f'Iteration {i+2}: length of interval = {(r - l):.5f}, x = {x_k:.5f}, f(x) = {func(x_k):.5f}')
-        
-        if (r - l < eps):
-            break
+from services.opt import *
 
-    print(f'Result: x = {x_k:.5f}, f(x) = {func(x_k):.5f}')
-    print(f'Number of calculations: {num_calc}')
-    
-    if plot:
-        plot_optimization(func, bounds, x)
+phi = golden_ratio = (1 + math.sqrt(5)) / 2
         
-    return (l + r) / 2, interval_change, num_calc
     
-def fib(n: int) -> int:
-    a, b = 0, 1
-    i = 2
-    while i != n:
-        c = a + b
-        a, b = b, c
-        i += 1
-    return b
-
-def fibonacci_method(func, bounds: Tuple[float, float], eps: float, n: int = 20, plot=False) -> tuple:
-    l, r = bounds
-    x1, x2 = l + (r-l) * fib(n-2)/fib(n), l + (r-l) * fib(n-1)/fib(n)
+class GoldenSectionMethod(ABSOptimizationMethod):
+    method_name = 'Golden section method'
     
-    print('Fibonacci Method:')
-    print(f'f(x) = e^(x-5) + e^(5-x), l = {l}, r = {r}')
-    
-    x_k = (l + r) / 2
-    x = np.array([x_k])
-    i, interval_change, num_calc = 1, 0, 2
-    print(f'Iteration {i}: length of interval = {(r-l):.5f}, x = {x_k:.5f}, f(x) = {func(x_k):.5f}')
-    
-    fx1, fx2 = func(x1), func(x2)
-    while n != 1 and (r - l) >= eps:
-        if fx1 > fx2:
-            l = x1
-            x1 = x2
-            x2 = r - (x1 - l)
-            fx1, fx2 = fx2, func(x2)
-        else:
-            r = x2
-            x2 = x1
-            x1 = l + (r - x2)
-            fx2, fx1 = fx1, func(x1)
+    def optimization_method(self, func, bounds, eps, max_iter=100):
+        l, r = bounds
+        iterations = []
+        d = (r - l)
+        ind = 0
+        interval_changes = 0
+        
+        while (r - l) >= eps:
+            d = d / phi
+            x1 = r - d
+            x2 = l + d
             
-        interval_change += 1
-        x_k = (l + r) / 2
-        x = np.append(x, x_k)
-        num_calc += 1
-        i += 1
-        print(f'Iteration {i}: length of interval = {(r - l):.5f}, x = {x_k:.5f}, f(x) = {func(x_k):.5f}')
-        n-=1
-    
-    print(f'Result: x = {x_k:.5f}, f(x) = {func(x_k):.5f}')
-    print(f'Number of calculations: {num_calc}')
-    
-    if plot:
-        plot_optimization(func, bounds, x)
-    return (x1 + x2) / 2, interval_change, num_calc
-
-def sven_method(func, x0: float) -> Tuple[float, float]:
-    step = 0.5
-    fl, f, fr = func(x0 - step), func(x0), func(x0 + step)
-    
-    if fl >= f and f < fr:
-        return x0 - step, x0 + step
-    if fl < f < fr:
-        step = -step
-        
-    p = 1
-    while True:
-        f_new = func(x0 + 2**p * step)
-        
-        if f_new >= f:
-            x1 = x0 + 2**(p - 2) * step
-            x2 = x0 + 2**(p - 1) * step
-            x4 = x0 + 2**p * step
-            x3 = (x4 - x2) / 2
+            temp_x = (l + r) / 2
+            self._log_iteration(ind, temp_x, func(temp_x, ignore_call=True), (r - l))
             
-            return min(x1, x4), max(x1, x4)
-
-        f = f_new
-        p += 1
+            if func(x1) <= func(x2):
+                r = x2
+            else:
+                l = x1
+                
+            iterations.append(temp_x)
+            interval_changes += 1
+            ind += 1
+    
+        result = (l + r) / 2
         
-f = lambda x: np.exp(x - 5) + np.exp(5 - x)
-print(sven_method(f, 2))
-golden_section_method(f, (3, 6), 0.01, plot=True)
-fibonacci_method(f, (3, 6), 0.01, 20, plot=True)
+        return result, iterations, interval_changes, self.function_calls
+    
 
-def calc(method, bounds):
-    interval_changes = []
-    eps = []
-    epsilon = 0.001
-    while epsilon <= 0.1:
-        interval_changes.append(method(f, bounds, epsilon, plot=False)[1])
-        epsilon += 0.001
-        eps.append(epsilon)
-    return eps, interval_changes
-
-eps1, interval_changes1 = calc(golden_section_method, (3, 6))
-eps2, interval_changes2 = calc(fibonacci_method, (3, 6))
-
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=eps1, y=interval_changes1, name='golden section'))
-fig.add_trace(go.Scatter(x=eps2, y=interval_changes2, name='fibonacci'))
-fig.update_layout(xaxis_title='eps', yaxis_title='interval changes')
-fig.show()
+class FibonacciMethod(ABSOptimizationMethod):
+    method_name = 'Fibonacci method'
+    
+    @staticmethod
+    def fib(n):
+        a = 0
+        b = 1
+        
+        if n == 0:
+            return a
+        
+        if n == 1:
+            return b
+        
+        for i in range(1, n):
+            a, b = b, a + b
+            
+        return b
+    
+    def optimization_method(self, func, bounds, eps, n=20):
+        fib = self.fib
+        l, r = bounds
+        iterations = []
+        ind = 0
+        interval_changes = 0
+        
+        n = 0
+        while fib(n) <= (r - l) / (eps):
+            n += 1
+        
+        n = max(n, 3)
+        
+        for k in range(n - 2):
+            p = (fib(n - k - 1) / fib(n - k))
+            x1 = l + (r - l) * (1 - p)
+            x2 = l + (r - l) * p
+            
+            temp_x = (l + r) / 2
+            self._log_iteration(ind, temp_x, func(temp_x, ignore_call=True), (r - l))
+            
+            if func(x1) <= func(x2):
+                r = x2
+            else:
+                l = x1
+                
+            iterations.append(temp_x)
+            interval_changes += 1
+            ind += 1
+    
+        result = (l + r) / 2
+        
+        return result, iterations, interval_changes, self.function_calls
 
 aph = 0.5
 bt = 1.5
@@ -246,3 +170,78 @@ def profit(x):
     return -G(stationary, x)
 
 # dichotomy_method(profit, (0, 1), 0.01, plot=True)
+
+def compare_methods(method1, method2, eps_range=np.linspace(0.0001, 0.1, 100), method_label1='f1', method_label2='f2'):
+    params1 = []
+    params2 = []
+
+    def get_params(method, eps):
+        result, iters, inter_ch, func_calcs = method(eps)
+        return [inter_ch, func_calcs]
+        
+    for eps in eps_range:
+        params1.append(get_params(method1, eps))
+        params2.append(get_params(method2, eps))
+        
+    ax1 = plt.subplot(1, 2, 1)
+    ax2 = plt.subplot(1, 2, 2)
+    
+    
+    params1 = np.array(params1)
+    params2 = np.array(params2)
+
+    ax1.set_xlabel('epsilon')
+    ax1.set_ylabel('Interval changes')
+    ax1.plot(eps_range, params1[:, 0], label=method_label1)
+    ax1.plot(eps_range, params2[:, 0], label=method_label2)
+    
+    ax2.set_xlabel('epsilon')
+    ax2.set_ylabel('Function calcs')
+    ax2.plot(eps_range, params1[:, 1], label=method_label1)
+    ax2.plot(eps_range, params2[:, 1], label=method_label2)
+    
+    ax1.legend()
+    ax2.legend()
+    plt.show()
+
+
+def task1():
+    f = lambda x:  2 - (1 / (np.log2(x**4 + 4*(x**3) + 29)))
+    x0 = -1
+    eps = 0.01
+    
+    f = lambda x: np.exp(x - 5) + np.exp(5 - x)
+    x0 = 2
+    
+    fibonacci_method = FibonacciMethod()
+    golden_section_method = GoldenSectionMethod()
+
+    step = 0.5
+    interval = fibonacci_method.get_interval(f, x0, step)
+    print(f'Sven method interval with {step=}: {interval}')
+    fibonacci_method.is_plot = True
+    golden_section_method.is_plot = True
+    n = 20
+    fibonacci_method(f, interval, eps, n=20)
+    # golden_section_method(f, interval, eps)
+    
+    fibonacci_method.is_plot = False
+    golden_section_method.is_plot = False
+    fibonacci_method.is_log = False
+    golden_section_method.is_log = False
+    
+    compare_methods(
+        lambda eps: fibonacci_method(f, interval, eps, n=20),
+        lambda eps: golden_section_method(f, interval, eps),
+        method_label1='fibonacci_method',
+        method_label2='golden_section_method',
+    )
+    # fibonacci_method(profit, (0, 1), 0.01, n=20)
+    
+    
+def main():
+    task1()
+    
+    
+if __name__ == '__main__':
+    main()

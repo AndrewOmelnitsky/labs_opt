@@ -3,9 +3,6 @@ from collections.abc import Iterable
 import math
 from scipy.optimize import fsolve
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-
 
 import math
 import matplotlib.pyplot as plt
@@ -18,38 +15,8 @@ phi = golden_ratio = (1 + math.sqrt(5)) / 2
     
 class GoldenSectionMethod(ABSOptimizationMethod):
     method_name = 'Golden section method'
-        
-    def optimization_method(self, func, bounds, eps):
-        l, r = bounds
-        
-        iterations = []
-        idx = 0
-
-        while r - l >= eps:
-            temp_x = (l + r) / 2
-            x1 = temp_x - eps / 2
-            x2 = temp_x + eps / 2
-            
-            if func(x1) > func(x2):
-                l = temp_x
-            else:
-                r = temp_x
-                
-            self._log_iteration(idx, temp_x, func(temp_x, ignore_call=True), (r - l))
-            
-            iterations.append(temp_x)
-            idx += 1
-            
-        result = (l + r) / 2
-        iterations.append(result)
-        
-        # Логирование последней итерации и результата
-        self._log_iteration(idx, result, func(result, ignore_call=True), (r - l))
-        self._log_result(result, func(temp_x, ignore_call=True))
-        
-        return result, iterations
     
-    def optimization_method(self, func, bounds, eps, max_iter=100):
+    def optimization_method_ex(self, func, bounds, eps, max_iter=100):
         l, r = bounds
         iterations = []
         
@@ -84,9 +51,33 @@ class GoldenSectionMethod(ABSOptimizationMethod):
     
         result = (l + r) / 2
         
-        self._log_result(result, func(result, ignore_call=True))
-        
         return result, iterations
+    
+    def optimization_method(self, func, bounds, eps, max_iter=100):
+        l, r = bounds
+        iterations = []
+        d = (r - l)
+        ind = 0
+        
+        while (r - l) >= eps:
+            d = d / phi
+            x1 = r - d
+            x2 = l + d
+            
+            temp_x = (l + r) / 2
+            self._log_iteration(ind, temp_x, func(temp_x, ignore_call=True), (r - l))
+            
+            if func(x1) <= func(x2):
+                r = x2
+            else:
+                l = x1
+                
+            iterations.append(temp_x)
+            ind += 1
+    
+        result = (l + r) / 2
+        
+        return result, iterations, 1, 2, 3
 
 
 # TODO: 
@@ -231,7 +222,7 @@ def task1():
     golden_section_method.is_plot = True
     golden_section_method(f, interval, eps)
     
-    golden_section_method(profit, (0, 1), 0.01)
+    # golden_section_method(profit, (0, 1), 0.01)
     
     
 def main():
