@@ -1,8 +1,11 @@
+import copy
 import numpy as np
+import math
 import matplotlib.pyplot as plt
 from colorama import init as colorama_init
 colorama_init()
 from colorama import Fore, Back, Style
+
 
 class ABSOptimizationMethod(object):
     method_name = 'optimization method'
@@ -11,17 +14,21 @@ class ABSOptimizationMethod(object):
         self.function_text = 'f(x)'
         self.is_plot = False
         self.is_log = True
+        self.is_minimization = True
+        self.log_iteration_like_table = True
         
     def __call__(self, func, bounds, *args, function_text=None, **kwargs):
         """Функция func должна быть совместима с использованием numpy"""
         self._log_start(function_text or self.function_text, *bounds)
         
         # Decorate func to count number of calls
-        func = self.function_calls_count(func)
+        optimiation_func = copy.copy(func)
+        optimiation_func = self.optimization_type_function_decorator(optimiation_func)
+        optimiation_func = self.function_calls_count(optimiation_func)
         
-        result, iterations, *other = self.optimization_method(func, bounds, *args, **kwargs)
+        result, iterations, *other = self.optimization_method(optimiation_func, bounds, *args, **kwargs)
         
-        self._log_result(result, func(result, ignore_call=True))
+        self._log_result(result, func(result))
         self._log_number_of_iterations(len(iterations))
         
         if self.is_plot:
@@ -65,6 +72,16 @@ class ABSOptimizationMethod(object):
         
         return wrap
     
+    def optimization_type_function_decorator(self, func):
+        def wrap(*args, ignore_call=False, **kwargs):
+            result = func(*args, **kwargs)
+            if not self.is_minimization:
+                return -result
+            
+            return result
+        
+        return wrap
+    
     @staticmethod
     def _log_decorator(func):
         def wrap(self, *args, **kwargs):
@@ -77,6 +94,14 @@ class ABSOptimizationMethod(object):
     
     @_log_decorator
     def _log_iteration(self, idx, x, y, L):
+        if self.log_iteration_like_table:
+            print(Fore.GREEN + f'iteration {idx}:' + Style.RESET_ALL, end='')
+            print(f'\tL = {L:.5f}', end='')
+            print(f'\tx = {x:.5f}', end='')
+            print(f'\tf(x) = {y:.5f}', end='')
+            print()
+            return
+            
         print(Fore.GREEN + f'iteration {idx}:' + Style.RESET_ALL)
         print(f'\tL = {L:.5f}')
         print(f'\tx = {x:.5f}')
@@ -84,7 +109,7 @@ class ABSOptimizationMethod(object):
         
     @_log_decorator
     def _log_start(self, func_text, l, r):
-        print(Fore.RED + self.method_name + Style.RESET_ALL)
+        print(Fore.RED + 'Optimization method: ' + self.method_name + Style.RESET_ALL)
         print(Fore.GREEN + 'Initial parameters:' + Style.RESET_ALL)
         print(f'\t{func_text}')
         print(f'\tl = {l:.5f}, r = {r:.5f}')
@@ -143,3 +168,124 @@ class ABSOptimizationMethod(object):
         
     def optimization_method(self):
         ...
+
+
+class DichotomyMethod(ABSOptimizationMethod):
+    method_name = 'Dichotomy method'
+        
+    def optimization_method(self, func, bounds, eps):
+        l, r = bounds
+        
+        iterations = []
+        idx = 0
+
+        while r - l >= eps:
+            temp_x = (l + r) / 2
+            x1 = temp_x - eps / 2
+            x2 = temp_x + eps / 2
+            
+            if func(x1) > func(x2):
+                l = temp_x
+            else:
+                r = temp_x
+                
+            self._log_iteration(idx, temp_x, func(temp_x, ignore_call=True), (r - l))
+            
+            iterations.append(temp_x)
+            idx += 1
+            
+        result = (l + r) / 2
+        iterations.append(result)
+        
+        # Логирование последней итерации
+        self._log_iteration(idx, result, func(result, ignore_call=True), (r - l))
+        
+        return result, iterations
+
+
+phi = golden_ratio = (1 + math.sqrt(5)) / 2
+
+class GoldenSectionMethod(ABSOptimizationMethod):
+    method_name = 'Golden section method'
+    
+    def optimization_method(self, func, bounds, eps, max_iter=100):
+        l, r = bounds
+        iterations = []
+        d = (r - l)
+        ind = 0
+        interval_changes = 0
+        
+        while (r - l) >= eps:
+            d = d / phi
+            x1 = r - d
+            x2 = l + d
+            
+            temp_x = (l + r) / 2
+            self._log_iteration(ind, temp_x, func(temp_x, ignore_call=True), (r - l))
+            
+            if func(x1) <= func(x2):
+                r = x2
+            else:
+                l = x1
+                
+            iterations.append(temp_x)
+            interval_changes += 1
+            ind += 1
+    
+        result = (l + r) / 2
+        
+        return result, iterations, interval_changes, self.function_calls
+    
+
+class FibonacciMethod(ABSOptimizationMethod):
+    method_name = 'Fibonacci method'
+    
+    @staticmethod
+    def fib(n):
+        a = 0
+        b = 1
+        
+        if n == 0:
+            return a
+        
+        if n == 1:
+            return b
+        
+        for i in range(1, n):
+            a, b = b, a + b
+            
+        return b
+    
+    def optimization_method(self, func, bounds, eps):
+        fib = self.fib
+        l, r = bounds
+        iterations = []
+        ind = 0
+        interval_changes = 0
+        
+        n = 0
+        while fib(n) <= (r - l) / (eps):
+            n += 1
+        
+        n = max(n, 3)
+        
+        for k in range(n - 2):
+            p = (fib(n - k - 1) / fib(n - k))
+            x1 = l + (r - l) * (1 - p)
+            x2 = l + (r - l) * p
+            
+            temp_x = (l + r) / 2
+            self._log_iteration(ind, temp_x, func(temp_x, ignore_call=True), (r - l))
+            
+            if func(x1) <= func(x2):
+                r = x2
+            else:
+                l = x1
+                
+            iterations.append(temp_x)
+            interval_changes += 1
+            ind += 1
+    
+        result = (l + r) / 2
+        
+        return result, iterations, interval_changes, self.function_calls

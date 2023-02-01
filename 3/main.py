@@ -20,7 +20,7 @@ def main():
     ax1 = plt.subplot(2, 2, 1)
     ax2 = plt.subplot(2, 2, 2)
     ax3 = plt.subplot(2, 2, 3)
-    ax3 = plt.subplot(2, 2, 3)
+    # ax3 = plt.subplot(2, 2, 3)
     
     ax1.plot(t, y1[:, 0], label='1')
     ax2.plot(t, y1[:, 1], label='2')

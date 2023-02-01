@@ -15,6 +15,9 @@ from numpy import pi
 from py_UI.app_ui import Ui_MainWindow
 
 from count_expression import count_expression
+from count_diff import count_function_diff, get_grad_func
+
+
 
 def input_expression(help_str='Input expression: '):
     data_str = input(help_str)
@@ -74,7 +77,9 @@ def find_extremum(grad_fun, init, n_iterations, eta, b, *, eps=1e-6):
     points = [np.array(init)]
     v = 0
     for k in range(n_iterations):
+        # print(k)
         x = points[-1]
+        # print(x)
         x = x + v * b - eta * grad_fun(x[0] + b * v, x[1] + b * v)
         
         dist = math.hypot(points[-1][0] - x[0], points[-1][1] - x[1])
@@ -118,7 +123,8 @@ class GraphicWidget(QWidget):
     def mpl_on_click(self, event):
         if event.dblclick:
             x, y = event.xdata, event.ydata
-            self.count_max(x, y)
+            points = self.count_max(x, y)
+            self.plot_path(points)
         
     def _init_axis(self):
         color = '#ffffff'
@@ -151,16 +157,7 @@ class GraphicWidget(QWidget):
     def set_exp(self, expression):
         self.expression = expression
         
-    def _count_max(self):
-        x, y = sympy.symbols('x y')
-        exp = eval(self.expression)
-        x_d = str(sympy.diff(exp, x))
-        y_d = str(sympy.diff(exp, y))
-        
-        grad = lambda x, y: np.array([-eval(x_d), -eval(y_d)])
-        
-        points = find_extremum(grad, self.max_count_init, n_iterations=10000, eta=0.01, b = 0.5, eps=1e-6)
-        
+    def plot_path(self, points):
         self._axis.plot(
             points[0], points[1],
             color="blue",
@@ -188,10 +185,17 @@ class GraphicWidget(QWidget):
         self._canvas.flush_events()
         
         self.number_of_max_points += 1
+        
+    def _count_max(self):
+        print("_count_max")
+        grad = get_grad_func(self.expression)
+        
+        points = find_extremum(grad, self.max_count_init, n_iterations=10000, eta=0.01, b = 0.5, eps=1e-10)
+        return points
             
     def count_max(self, x, y):
         self.max_count_init = [x, y]
-        self._count_max()
+        return self._count_max()
         
     def _count_data(self):
         return count_expression(self._get_params(), self.expression)
