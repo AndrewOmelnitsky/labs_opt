@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import odeint, solve_ivp
 
 s = 10; r = 60; b = 1;
-x_init = 10; y_init = 10; z_init = 300
+x_0 = 10; y_0 = 10; z_0 = 300
 t = np.arange(0, 50, 0.01)
 
 def f(t, y):
@@ -16,7 +16,7 @@ def f(t, y):
 
 
 def main():
-    y1 = odeint(f, [x_init, y_init, z_init], t, tfirst=True)
+    y1 = odeint(f, [x_0, y_0, z_0], t, tfirst=True)
     
     ax1 = plt.subplot(2, 2, 1)
     ax2 = plt.subplot(2, 2, 2)
