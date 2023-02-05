@@ -98,7 +98,9 @@ class EconomicModel(object):
                 raise ValueError(param_name)
             setattr(self, param_name, changed_params[param_name])
             
-        return self.count_model(x)
+        result = self.count_model(x)
+        self.set_default()
+        return result
 
 
 def G_by_x(model: EconomicModel, tau: float, init: list[float] | None = None) -> float:
@@ -107,13 +109,15 @@ def G_by_x(model: EconomicModel, tau: float, init: list[float] | None = None) ->
     
     prepared_model_call = lambda x, *args: model(x, changed_params={"tau": args[0]})
     
-    # сброс до базовых значений модели
-    model.set_default()
-    
     # начальные значения модели
     if init is None:
         init = [0, 0.5, 0.25, 0.1, 0, 0.5, 0.25, 0.1]
     new_x = fsolve(prepared_model_call, x0=init, args=(tau,))
     
     model.tau = tau
-    return model.G(new_x)
+    result = model.G(new_x)
+    
+    # сброс до базовых значений модели
+    model.set_default()
+    
+    return result

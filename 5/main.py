@@ -1,164 +1,234 @@
-self.alpha = 0.5
-self.beta = 1.5
-self.gamma = 1.5
-self.delta = 0.1
-self.nu = 5
-self.mu = 20
-self.lambda_ = 20
-self.rho = 10
-self.A0 = 1
-self.L0 = 1
-self.D0 = 1
-self.tau = 0.4
-self.sigma = 0.2
-self.theta = (1 + self.alpha * (self.beta - 1)) ** (-1)
+from collections.abc import Callable
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.integrate import odeint, solve_ivp
+from scipy.optimize import fsolve
+
+from services.model import EconomicModel, G_by_x
 
 
-//claer;
-aph = 0.5; bt = 1.5; gm = 1.5; dt = 0.1; nu = 5;
-mu = 20; lmd = 20; ro = 10;
-A0 = 1; L0 = 1; D0 = 1;
-tau = 0.4; sigma = 0.15;
-theta = (1 + aph * (bt - 1)) ^ (-1);
-initial = [0; 0.5; 0.25; 0.1; 0; 0.5; 0.25; 0.1]
+t_start = 0
+t_end = 500
 
-left = 0;
-right = 600; resolution = 10;
-t = linspace(left, right, resolution * (right - left + 1));
 
-function [result]=L1(data)
-    result(1) = data(4) * ((1 - aph) * A0 * data(2) / data(3)) ^ (1 / aph);
-endfunction
+def count_volume(model, data):
+    legal = []
+    shadow = []
+    ratio = []
+    for current_data in data:
+        legal_and_shadow = model.Q1(current_data) + model.Q2(current_data)
+        legal_c = model.Q1(current_data) / legal_and_shadow
+        shadow_c = model.Q2(current_data) / legal_and_shadow
+        ratio_c = model.Q2(current_data) / model.Q1(current_data)
+        
+        legal.append(legal_c)
+        shadow.append(shadow_c)
+        ratio.append(ratio_c)
+        
+    return legal, shadow, ratio
 
-function [result]=Q1(data)
-    result(1) = A0 * data(4) ^ aph * L1(data) ^ (1 - aph);
-endfunction
 
-function [result]=D1(data)
-    result(1) = D0 * exp(-bt * data(2)) * data(6) / (data(2) + data(6));
-endfunction
+def count_profit(model, data):
+    legal = []
+    shadow = []
+    country = []
+    for current_data in data:
+        all_profit = (model.G1(current_data) + model.G2(current_data) + model.G(current_data))
+        legal_c = model.G1(current_data) / all_profit
+        shadow_c = model.G2(current_data) / all_profit
+        country_c = model.G(current_data) / all_profit
+        
+        legal.append(legal_c)
+        shadow.append(shadow_c)
+        country.append(country_c)
 
-function [result]=S1(data)
-    result(1) = L0 * (1 - exp(-gm * data(3))) * data(3) / (data(3) + data(7));
-endfunction
+    return legal, shadow, country
 
-function [result]=I1(data)
-    result(1) = (1 - tau) * (1 - theta) * data(1);
-endfunction
 
-function [result]=G1(data)
-    result(1) = (1 - tau) * theta * data(1);
-endfunction
+def count_price(model, data):
+    legal_p = data[:, 1]
+    shadow_p = data[:, 5]
+    legal_s = data[:, 2]
+    shadow_s = data[:, 6]
+    
+    return legal_p, shadow_p, legal_s, shadow_s
 
-function [result]=L2(data)
-    result(1) = data(8) * ((1 - aph) * A0 * data(6) / data(7)) ^ (1 / aph);
-endfunction
 
-function [result]=Q2(data)
-    result(1) = A0 * data(8) ^ aph * L2(data) ^ (1 - aph);
-endfunction
+def count_work_volume(model, data):
+    legal = []
+    shadow = []
+    for current_data in data:
+        legal_c = model.L1(current_data) / model.S1(current_data)
+        shadow_c = model.L2(current_data) / model.S2(current_data)
+        
+        legal.append(legal_c)
+        shadow.append(shadow_c)
+    
+    return legal, shadow
 
-function [result]=D2(data)
-    result(1) = D0 * exp(-bt * data(6)) * data(2) / (data(2) + data(6));
-endfunction
 
-function [result]=S2(data)
-    result(1) = L0 * (1 - exp(-gm * data(7))) * data(7) / (data(3) + data(7));
-endfunction
+def count_fonds(model, data, init):
+    legal = data[:, 3] / init[3]
+    shadow = data[:, 7] / init[7]
+    
+    return legal, shadow
 
-function [result]=I2(data)
-    result(1) = (1 - theta) * data(5);
-endfunction
 
-function [result]=G2(data)
-    result(1) = theta * data(5);
-endfunction
+def f_by_tau_sigma(
+    model: EconomicModel,
+    target_func: Callable,
+    tau: float, sigma: float,
+    init: list[float] | None = None) -> float:
+    prepared_model_call = lambda x, *args: model(x, changed_params={"tau": args[0], "sigma": args[1]})
+    
+    # начальные значения модели
+    if init is None:
+        init = [0, 0.5, 0.25, 0.1, 0, 0.5, 0.25, 0.1]
+    
+    new_x = fsolve(prepared_model_call, x0=init, args=(tau, sigma))
+    
+    # Проверка правильно ли работает решение с fsolve. Т.к. оно занимает намного меньше рессурсов для выполнения.
+    # t = np.arange(t_start, t_end, 0.1)
+    # new_x = odeint(lambda t, x, *args: prepared_model_call(x, *args), init, t, tfirst=True, args=(tau, sigma))[-1]
+    
+    model.tau = tau
+    model.sigma = sigma
+    result = target_func(new_x)
+    
+    # сброс до базовых значений модели
+    model.set_default()
+    return result
 
-function [result]=T(data)
-    result(1) = tau * data(1);
-endfunction
+    
+class ABSPlotFuncByTauAndSigma:
+    def __init__(self):
+        self.levels = 10
+        
+    def __call__(self):
+        x, y, z = self.count()
+        self.plot(x, y, z)
+        return self.prepared_func
+        
+    def prepared_func(self, tau, sigma):
+        return f_by_tau_sigma(self.model, self.target_func, tau, sigma)
+        
+    def count(self):
+        z = []
+        x = np.linspace(0, 1, 100)
+        y = np.linspace(0, 1, 100)
+        
+        for i, sigma in enumerate(y):
+            z.append([])
+            for tau in x:
+                res = self.prepared_func(tau, sigma)
+                z[i].append(res)
+                
+        return x, y, z
+        
+    def plot(self, x, y, z):
+        ax1 = plt.subplot(1, 1, 1)
+        ax1.set_xlabel('tau')
+        ax1.set_ylabel('sigma')
+        
+        ax1.contourf(x, y, z, levels=self.levels, cmap='plasma')
+        cs = ax1.contour(x, y, z, levels=self.levels, colors=np.zeros((self.levels, 3)))
+        ax1.clabel(cs)
+        
+        plt.show()
 
-function [result]=G(data)
-    result(1) = (1 - sigma) * tau * data(1);
-endfunction
 
-function [result]=calculate(t, data)
-    result(1) = (data(2) * min(Q1(data), D1(data)) - data(3) * min(L1(data), S1(data)) - data(1)) / nu;
-    result(2) = (D1(data) - Q1(data)) / mu;
-    result(3) = (L1(data) - S1(data)) / lmd;
-    result(4) = -dt * data(4) + I1(data);
-    result(5) = (exp(-ro * sigma * T(data)) * data(6) * min(Q2(data), D2( data)) - data(7) * min(L2(data), S2(data)) - data(5)) / nu;
-    result(6) = (D2(data) - Q2(data)) / mu;
-    result(7) = (L2(data) - S2(data)) / lmd;
-    result(8) = -dt * data(8) + I2(data)
-endfunction
+def main():
+    line_width = 0.5
+    t = np.arange(t_start, t_end, 0.1)
+    model = EconomicModel()
+    
+    p_plot = ABSPlotFuncByTauAndSigma()
+    
+    # Вывод зависомости G от tau и sigma
+    # p_plot.model = model
+    # p_plot.target_func = model.G
+    # p_plot()
+    
+    # Вывод зависомости G1 от tau и sigma
+    # p_plot.model = model
+    # p_plot.target_func = model.G1
+    # p_plot()
+    
+    # Вывод зависомости G2 от tau и sigma
+    # p_plot.model = model
+    # p_plot.target_func = model.G2
+    # p_plot()
+    
+    # Пример оптимизации системы
+    # a, b, c = 0.6, 0.3, 0.1
+    # p_plot.model = model
+    # p_plot.levels = 30
+    # p_plot.target_func = lambda x: (a * model.G(x)) + (b * model.G1(x)) - (c * model.G2(x))
+    # p_plot()
 
-// disp(initial);
-// disp('\n');
-// disp(initial(4));
-// disp('\n');
-
-ode_result = ode(initial, left, t, calculate);
-legal_part = []; black_part = []; black_coef = [];
-legal_profit_part = []; government_profit_part = []; black_profit_part = [];
-legal_price = []; black_price = [];
-legal_salary = []; black_salary = [];
-legal_salary_coef = []; black_salary_coef = [];
-legal_foundation_coef = []; black_foundation_coef = [];
-g_result = []; t_result = []; g1_result = []; g2_result = [];
-
-[height , width] = size(ode_result); // disp(width , height)
-
-for i = 1: width
-    temp_ode_result = ode_result(:,i)
-    legal_part($ + 1) = Q1(temp_ode_result) ./ (Q1(temp_ode_result) + Q2(temp_ode_result));
-    black_part($ + 1) = Q2(temp_ode_result) ./ (Q1(temp_ode_result) + Q2(temp_ode_result));
-    black_coef($ + 1) = Q1(temp_ode_result) ./ Q2(temp_ode_result);
-    //legal_profit_part($ + 1) = G1(temp_ode_result) ./ (G1(temp_ode_result) + G2(temp_ode_result) + G(temp_ode_result));
-    //government_profit_part($ + 1) = G(temp_ode_result) ./ (G1(temp_ode_result) + G2(temp_ode_result) + G2(temp_ode_result));
-    //black_profit_part($ + 1) = G2(temp_ode_result) ./ (G1(temp_ode_result) + G2(temp_ode_result) + G(temp_ode_result));
-    //disp('\n');
-    //disp(temp_ode_result(1));
-    //disp('\n');
-    legal_price($ + 1) = temp_ode_result(2);
-    black_price($ + 1) = temp_ode_result(6);
-    legal_salary($ + 1) = temp_ode_result(3);
-    black_salary($ + 1) = temp_ode_result(7);
-    legal_salary_coef($ + 1) = L1(temp_ode_result) ./ S1(temp_ode_result);
-    black_salary_coef($ + 1) = L2(temp_ode_result) ./ S2(temp_ode_result);
-
-	//disp('\n');
-    //disp(temp_ode_result(4));
-	//disp(initial(4));
-    //disp('\n');
-    legal_foundation_coef($ + 1) = temp_ode_result(4) ./ initial(4);
-    black_foundation_coef($ + 1) = temp_ode_result(8) ./ initial(8);
-    g_result($ + 1) = G(temp_ode_result); t_result($ + 1) = T(temp_ode_result);
-    g1_result($ + 1) = G1(temp_ode_result); g2_result($ + 1) = G2(temp_ode_result);
-end
-
-plot(t', [g_result'; t_result'; g1_result'; g2_result']);
-legend(prettyprint(["Pro t"; "Taxes"; "Legal"; "Black"],"latex","",%t),4);
-xtitle("", "t", "");
-
-/*
-scf(1);
-plot(t', [legal_part'; black_part'; black_coef']);
-legend(prettyprint(["Legal production part"; "Black production part"; "Ratio"],"latex","",%t), 3);
-xtitle("", "t", "");
-
-scf(2);
-plot(t', [legal_profit_part'; government_profit_part'; black_profit_part']);
-legend(prettyprint(["Legal pro t part"; "Government pro t part"; "Black profit part"],"latex","",%t), 3);
-xtitle("", "t", "");
-
-scf(3);
-plot(t', [legal_price'; black_price'; legal_salary'; black_salary']);
-legend(prettyprint(["Legal price"; "Black price"; "Legal salary"; "Black salary"],"latex","",%t), 4);
-xtitle("", "t", "");
-
-scf(4);
-plot(t', [legal_salary_coef'; black_salary_coef'; legal_foundation_coef'; black_foundation_coef']);
-legend(prettyprint(["Legal salary ratio"; "Black salary ratio"; "Legal foundation ratio"; "Black foundation ratio"],"latex","",%t), 4);
-xtitle("", "t", "");
-*/
+    model.tau = 0.45
+    model.sigma = 0
+    # print(model.tau)
+    # print(model.sigma)
+    
+    f = lambda t, x: model(x)
+    
+    init = [0, 0.5, 0.25, 0.1, 0, 0.5, 0.25, 0.1]
+    result = odeint(f, init, t, tfirst=True)
+    
+    l_v, s_v, r_v = count_volume(model, result)
+    l_p, s_p, r_p = count_profit(model, result)
+    l_price, s_price, l_salary, s_salary = count_price(model, result)
+    l_wv, s_wv = count_work_volume(model, result)
+    l_f, s_f = count_fonds(model, result, init)
+    
+    ax1 = plt.subplot(2, 2, 1)
+    ax2 = plt.subplot(2, 2, 2)
+    ax3 = plt.subplot(2, 2, 3)
+    ax4 = plt.subplot(2, 2, 4)
+    
+    plt.subplots_adjust(wspace=0.2, hspace=0.5)
+    ax1.set_title('A')
+    ax1.set_xlabel('t')
+    ax1.set_ylabel('value')
+    
+    ax2.set_title('Б')
+    ax2.set_xlabel('t')
+    ax2.set_ylabel('value')
+    
+    ax3.set_title('В')
+    ax3.set_xlabel('t')
+    ax3.set_ylabel('value')
+    
+    ax4.set_title('Г')
+    ax4.set_xlabel('t')
+    ax4.set_ylabel('value')
+    
+    ax1.plot(t, l_v, label='легальний', linewidth=line_width)
+    ax1.plot(t, s_v, label='тіньовий', linewidth=line_width)
+    ax1.plot(t, r_v, label='коефіцієнт тінізації', linewidth=line_width)
+    
+    ax2.plot(t, l_p, label='легальний', linewidth=line_width)
+    ax2.plot(t, s_p, label='тіньовий',linewidth=line_width)
+    ax2.plot(t, r_p, label='держава',linewidth=line_width)
+    
+    ax3.plot(t, l_price, label='легальний (ціни)', linewidth=line_width)
+    ax3.plot(t, s_price, label='тіньовий (ціни)', linewidth=line_width)
+    ax3.plot(t, l_salary, label='легальний (ЗП)', linewidth=line_width)
+    ax3.plot(t, s_salary, label='тіньовий (ЗП)', linewidth=line_width)
+    
+    ax4.plot(t, l_wv, label='легальний (трудові ресурси)', linewidth=line_width)
+    ax4.plot(t, s_wv, label='тіньовий (трудові ресурси)', linewidth=line_width)
+    ax4.plot(t, l_f, label='легальний (обсяг фондів)', linewidth=line_width)
+    ax4.plot(t, s_f, label='тіньовий (обсяг фондів)', linewidth=line_width)
+    
+    ax1.legend()
+    ax2.legend()
+    ax3.legend()
+    ax4.legend()
+    
+    plt.show()
+    
+    
+if __name__ == '__main__':
+    main()
