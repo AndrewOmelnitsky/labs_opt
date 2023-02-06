@@ -16,8 +16,9 @@ r_list = [0, 10, 20, 30, 40, 50]
 # s_list = [0, 10]
 # r_list = [0, 10]
 
-# s_list = [30, 40]
-# r_list = [30, 40]
+s_list = [0]
+r_list = [10, 50]
+is_save = True
 
 
 def f(t, y):
@@ -29,20 +30,40 @@ def f(t, y):
     return np.array(result)
 
 
-def latex_ex_section_pattern(idx, sigam, r, b, link):
-    sparam = fr'\(\sigam = {sigam}, r = {r}, b = {b}\)'
+def latex_ex_section_pattern(idx, sigam, r, b, links):
+    link1, link2, link3 = links
+    
+    sparam = fr'\(\sigma = {sigam}, r = {r}, b = {b}\)'
     s00 = r'\newpage'
     s0 = r'\subsection{Приклад ' + str(idx) + '}'
     s1 = fr'Розглянемо систему за таких початкових умов: {sparam}.\\'
     s2 = r'\begin{figure}[h!]'
     s3 = r'\centering'
-    s4 = r'\includegraphics[width=\textwidth]{lab4/' + link + '}'
-    s5 = r'\caption{Приклад ' + sparam + '}'
+    s4 = r'\includegraphics[width=\textwidth]{lab4/' + link1 + '}'
+    s5 = r'\caption{Приклад. (' + sparam + ')}'
     s6 = r'\label{fig:ex1}'
     s7 = r'\end{figure}\\'
-    s8 = 'Дамо характиристику. har'
     
-    l = [s00, s0, s1, s2, s3, s4, s5, s6, s7, s8]
+    l1 = [s00, s0, s1, s2, s3, s4, s5, s6, s7]
+    
+    s2 = r'\begin{figure}[h!]'
+    s3 = r'\centering'
+    s4 = r'\includegraphics[width=\textwidth]{lab4/' + link2 + '}'
+    s5 = r'\caption{У фазовому просторі. (' + sparam + ')}'
+    s6 = r'\label{fig:ex1}'
+    s7 = r'\end{figure}\\'
+    
+    l2 = [s2, s3, s4, s5, s6, s7]
+    
+    s2 = r'\begin{figure}[h!]'
+    s3 = r'\centering'
+    s4 = r'\includegraphics[width=\textwidth]{lab4/' + link3 + '}'
+    s5 = r'\caption{У просторі. (' + sparam + ')}'
+    s6 = r'\label{fig:ex1}'
+    s7 = r'\end{figure}\\'
+    
+    l3 = [s2, s3, s4, s5, s6, s7]
+    l = [*l1, *l2, *l3]
     
     return '\n'.join(l)
 
@@ -59,6 +80,9 @@ def main():
         for s in s_list:
             strfy = lambda x: f'_{abs(x)}' if x < 0 else str(x)
             link = f'images/r_{strfy(r)}___sigma_{strfy(s)}.png'
+            link1 = f'images/1__r_{strfy(r)}___sigma_{strfy(s)}.png'
+            link2 = f'images/2__r_{strfy(r)}___sigma_{strfy(s)}.png'
+            link3 = f'images/3__r_{strfy(r)}___sigma_{strfy(s)}.png'
             
             
             y1 = odeint(f, [x_0, y_0, z_0], t, tfirst=True)
@@ -87,6 +111,8 @@ def main():
             ax1.plot(t, y1[:, 0], label='1')
             ax2.plot(t, y1[:, 1], label='2')
             ax3.plot(t, y1[:, 2], label='3')
+            if is_save:
+                plt.savefig(link1)
             plt.show()
             
             
@@ -113,6 +139,8 @@ def main():
             ax1.plot(y1[:, 0], y1[:, 1], label='1')
             ax2.plot(y1[:, 0], y1[:, 2], label='2')
             ax3.plot(y1[:, 1], y1[:, 2], label='3')
+            if is_save:
+                plt.savefig(link2)
             plt.show()
             
             
@@ -128,11 +156,13 @@ def main():
             ax1.set_zlabel('z(t)')
             
             ax1.plot(y1[:, 0], y1[:, 1], y1[:, 2], label='4', linewidth=0.5)
+            if is_save:
+                plt.savefig(link3)
             plt.show()
             
             if input('add? '):
                 idx += 1
-                result_latex_text += '\n\n\n' + latex_ex_section_pattern(idx, s, r, b, link)
+                result_latex_text += '\n\n\n' + latex_ex_section_pattern(idx, s, r, b, [link1, link2, link3])
                 
     print(result_latex_text)
 
