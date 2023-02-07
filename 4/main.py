@@ -8,17 +8,26 @@ b = 3
 x_0 = 10
 y_0 = 10
 z_0 = 10
-t = np.arange(0, 10, 0.001)
+
+# x_0 = 100
+# y_0 = 100
+# z_0 = 10
+
+# x_0 = 10
+# y_0 = 100
+# z_0 = 100
+
+
+
+t = np.arange(0, 30, 0.001)
 
 s_list = [0, 10, 20, 30, 40, 50]
 r_list = [0, 10, 20, 30, 40, 50]
 
-# s_list = [0, 10]
-# r_list = [0, 10]
-
-s_list = [0]
-r_list = [10, 50]
-is_save = True
+s_list = [10]
+r_list = [50]
+is_save = False
+# is_save = True
 
 
 def f(t, y):
@@ -79,13 +88,14 @@ def main():
     for r in r_list:
         for s in s_list:
             strfy = lambda x: f'_{abs(x)}' if x < 0 else str(x)
-            link = f'images/r_{strfy(r)}___sigma_{strfy(s)}.png'
-            link1 = f'images/1__r_{strfy(r)}___sigma_{strfy(s)}.png'
-            link2 = f'images/2__r_{strfy(r)}___sigma_{strfy(s)}.png'
-            link3 = f'images/3__r_{strfy(r)}___sigma_{strfy(s)}.png'
-            
+            link = f'images/r_{strfy(r)}___sigma_{strfy(s)}__{x_0}_{y_0}_{z_0}.png'
+            link1 = f'images/1__r_{strfy(r)}___sigma_{strfy(s)}__{x_0}_{y_0}_{z_0}.png'
+            link2 = f'images/2__r_{strfy(r)}___sigma_{strfy(s)}__{x_0}_{y_0}_{z_0}.png'
+            link3 = f'images/3__r_{strfy(r)}___sigma_{strfy(s)}__{x_0}_{y_0}_{z_0}.png'
             
             y1 = odeint(f, [x_0, y_0, z_0], t, tfirst=True)
+            # y2 = odeint(f, [100, 100, 10], t, tfirst=True)
+            # y3 = odeint(f, [10, 100, 100], t, tfirst=True)
             
             
             
@@ -108,9 +118,17 @@ def main():
             ax3.set_xlabel('t')
             ax3.set_ylabel('z(t)')
             
-            ax1.plot(t, y1[:, 0], label='1')
-            ax2.plot(t, y1[:, 1], label='2')
-            ax3.plot(t, y1[:, 2], label='3')
+            ax1.plot(t, y1[:, 0], linewidth=0.5, label='1')
+            ax2.plot(t, y1[:, 1], linewidth=0.5, label='2')
+            ax3.plot(t, y1[:, 2], linewidth=0.5, label='3')
+            
+            # ax1.plot(t, y2[:, 0], linewidth=0.5, label='1')
+            # ax2.plot(t, y2[:, 1], linewidth=0.5, label='2')
+            # ax3.plot(t, y2[:, 2], linewidth=0.5, label='3')
+            
+            # ax1.plot(t, y3[:, 0], linewidth=0.5, label='1')
+            # ax2.plot(t, y3[:, 1], linewidth=0.5, label='2')
+            # ax3.plot(t, y3[:, 2], linewidth=0.5, label='3')
             if is_save:
                 plt.savefig(link1)
             plt.show()
@@ -136,9 +154,17 @@ def main():
             ax3.set_xlabel('y')
             ax3.set_ylabel('z')
             
-            ax1.plot(y1[:, 0], y1[:, 1], label='1')
-            ax2.plot(y1[:, 0], y1[:, 2], label='2')
-            ax3.plot(y1[:, 1], y1[:, 2], label='3')
+            ax1.plot(y1[:, 0], y1[:, 1], linewidth=0.5, label='1')
+            ax2.plot(y1[:, 0], y1[:, 2], linewidth=0.5, label='2')
+            ax3.plot(y1[:, 1], y1[:, 2], linewidth=0.5, label='3')
+            
+            # ax1.plot(y2[:, 0], y2[:, 1], linewidth=0.5, label='1')
+            # ax2.plot(y2[:, 0], y2[:, 2], linewidth=0.5, label='2')
+            # ax3.plot(y2[:, 1], y2[:, 2], linewidth=0.5, label='3')
+            
+            # ax1.plot(y3[:, 0], y3[:, 1], linewidth=0.5, label='1')
+            # ax2.plot(y3[:, 0], y3[:, 2], linewidth=0.5, label='2')
+            # ax3.plot(y3[:, 1], y3[:, 2], linewidth=0.5, label='3')
             if is_save:
                 plt.savefig(link2)
             plt.show()
@@ -155,7 +181,9 @@ def main():
             ax1.set_ylabel('y(t)')
             ax1.set_zlabel('z(t)')
             
-            ax1.plot(y1[:, 0], y1[:, 1], y1[:, 2], label='4', linewidth=0.5)
+            ax1.plot(y1[:, 0], y1[:, 1], y1[:, 2], label='4', linewidth=0.3)
+            # ax1.plot(y2[:, 0], y2[:, 1], y2[:, 2], label='4', linewidth=0.3)
+            # ax1.plot(y3[:, 0], y3[:, 1], y3[:, 2], label='4', linewidth=0.3)
             if is_save:
                 plt.savefig(link3)
             plt.show()
