@@ -1,379 +1,363 @@
+import matplotlib; matplotlib.use('Qt5Agg')
 import numpy as np
 import math
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout
+import sip
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
+import sympy
+from numpy import pi
+from collections.abc import Callable
+from scipy.integrate import odeint, solve_ivp
 from scipy.optimize import fsolve
-from PyQt5 import QtCore, QtWidgets# , QtWebEngineWidgets
-from PyQt5.QtGui import QFont
-import numpy as np
-import plotly.graph_objects as go
-from numpy import linalg as LA
-from typing import List, Tuple
-import math
 
-def sven(function, initial: float, initial_step: float) -> Tuple[float, float]:
-    STEP = initial_step
 
-    f_left = function(initial - math.fabs(STEP))
-    f = function(initial)
-    f_right = function(initial + math.fabs(STEP))
 
-    if f_left >= f and f < f_right:
-        return (initial - STEP, initial + STEP)
-    if f_left < f < f_right:
-        STEP = -STEP
-        
-    p = 1
-    while True:
-        f_new = function(initial + 2**p * STEP)
-        
-        if f_new >= f:
-            first = initial + 2**(p - 2) * STEP
-            second = initial + 2**(p - 1) * STEP
-            forth = initial + 2**p * STEP
-            third = (forth - second) / 2
-            return (min(first, forth), max(first, forth))
+# import UI
+from py_UI.app_ui import Ui_MainWindow
+
+# from count_expression import count_expression
+# from count_diff import count_function_diff, get_grad_func
+
+from services.model import EconomicModel
+from method import test_func, gradient_descent
+
+
+
+def plot_levels(fig, ax, params, data, levels=5, *, contour_type='line_label'):
+    '''
+    contour_type = 'line' | 'fill' | 'line_label' | 'fill_label'
+    '''
+
+    x, y = params[0]['value'], params[1]['value']
+
+    # fig, ax = plt.subplots()
+
+    match contour_type:
+        case 'line':
+            ax.contour(x, y, data, levels=levels, cmap='plasma')
+        case 'line_label':
+            cs = ax.contour(x, y, data, levels=levels, cmap='plasma')
+            ax.clabel(cs)
+        case 'fill':
+            ax.contourf(x, y, data, levels=levels, cmap='plasma')
+        case 'fill_label':
+            color_line = np.zeros((levels, 3))
+            c = np.linspace(1, 0.2, levels)
+            # color_line[:, 0] = c
+            # color_line[:, 1] = c
+            # color_line[:, 2] = c
+            color_line[:, 0] = 0
+            color_line[:, 1] = 0
+            color_line[:, 2] = 0
+            ax.contourf(x, y, data, levels=levels, cmap='plasma')
+            cs = ax.contour(x, y, data, levels=levels, colors=color_line)
+            ax.clabel(cs)
+
+    fig.set_figwidth(5)
+    fig.set_figheight(5)
+
+
+def plot_path(ax, points, label, color='r'):
+    x, y = points[0], points[1]
+    ax.plot(x, y, color=color, label=label)
     
-        f = f_new
-        p += 1
-
-def golden_ratio(function, bounds: Tuple[float, float], eps: float, debug_list: List[float] = None) -> float:
-    start, end = bounds
-    RATIO = (1 + math.sqrt(5)) / 2
     
-    k = 1
-    c = 0
-    
-    x1, x2 = end - (end - start) / RATIO, start + (end - start) / RATIO
-    f1, f2 = function(x1), function(x2)
-    
-    c += 2
-    
-    while (end - start) >= eps:
-        k += 1
-        
-        if f1 >= f2:
-            start = x1
-            x1 = x2
-            f1 = f2
-            x2 = start + (end - start) / RATIO
-            f2 = function(x2)
-            c += 1
-        else:
-            end = x2
-            x2 = x1
-            f2 = f1
-            x1 = end - (end - start) / RATIO
-            f1 = function(x1)
-            c += 1
-        
-    middle = (end + start) / 2
-    return middle
-
-
-def part_diff(function, point, diff_id, eps=1e-9):
-    d_point = point.copy()
-    d_point[diff_id] = point[diff_id] + eps
-    return (function(d_point) - function(point)) / eps
-
-def grad_in_point(function, point):
-    grad = []
-    for i in range(len(point)):
-        grad.append(part_diff(function, point, i))
-        
-    return np.array(grad)
     
 
-def gradient_descent(function, init, eps, bounds = None, debug_list = None):
-    # x, y = initial[0], initial[1]
-    # point = init.copy()
-    point = np.array(init, dtype=float)
+def f_by_tau_sigma(
+    model: EconomicModel,
+    target_func: Callable,
+    tau: float, sigma: float,
+    init: list[float] | None = None) -> float:
+    prepared_model_call = lambda x, *args: model(x, changed_params={"tau": args[0], "sigma": args[1]})
+    # print(tau, sigma)
+    # начальные значения модели
+    if init is None:
+        init = [0, 0.5, 0.25, 0.1, 0, 0.5, 0.25, 0.1]
     
-    while True:
-        if debug_list != None:
-            debug_list.append(point)
-        
-        n_grad = grad_in_point(function, point)
-        # grad = n_grad
-        grad = n_grad / np.linalg.norm(n_grad, ord=1)
-        
-        if bounds is not None:
-            for i, (start, end) in enumerate(bounds):
-                if abs(point[i] - start) < eps:
-                    grad[i] = min(grad[i], 0)
-                    n_grad[i] = min(n_grad[i], 0)
-                elif abs(point[i] - end) < eps:
-                    grad[i] = max(grad[i], 0)
-                    n_grad[i] = max(n_grad[i], 0)
-        
-        # if bounds is not None:
-        #     if abs(x - bounds[0][0]) < eps:
-        #         gradx = min(gradx, 0)
-        #     if abs(x - bounds[0][1]) < eps:
-        #         gradx = max(gradx, 0)
-        #     if abs(y - bounds[1][0]) < eps:
-        #         grady = min(grady, 0)
-        #     if abs(y - bounds[1][1]) < eps:
-        #         grady = max(grady, 0)
-            
-        f = lambda alpha: function(point - (alpha * grad))
-        
-        sub_eps = 1e-6
-        search_bounds = sven(f, 0, min(sub_eps / np.max(np.abs(grad)), sub_eps))
-        alpha = golden_ratio(f, search_bounds, sub_eps)
-        step = grad * (-alpha)
-        
-        if np.sum(n_grad**2)**0.5 < eps:
-            return point
+    new_x = fsolve(prepared_model_call, x0=init, args=(tau, sigma))
     
-        point += step
-        
-        if bounds is not None:
-            for i, (start, end) in enumerate(bounds):
-                if point[i] < start:
-                    point[i] = start
-                elif point[i] > end:
-                    point[i] = end
-                    
-
-def draw_path(func, debug_list, bounds, number_of_lines, xtitle='', ytitle=''):
-    l, r = bounds
-    x = np.linspace(l, r, 30)
-    y = np.linspace(l, r, 30)
-    X, Y = np.meshgrid(x, y)
-    Z = func(X, Y)
-    minv = np.min(Z)
-    maxv = np.max(Z)
-    fig = go.Figure(data=
-        go.Contour(
-            z=Z,
-            x=x,
-            y=y,
-            contours=dict(
-                showlabels=True
-            ),
-            contours_start=minv,
-            contours_end=maxv,
-            contours_size=(maxv - minv) / number_of_lines,
-        )
-    )
-    x_values = [debug_list[i][0] for i in range(len(debug_list))]
-    y_values = [debug_list[i][1] for i in range(len(debug_list))]
-    fig.add_trace(go.Scatter(x=x_values, y=y_values, showlegend=False))
-    fig.add_trace(go.Scatter(x=[x_values[0]], y=[y_values[0]],
-                             name='start', marker=dict(color="Green", size=6), showlegend=True))
-    fig.add_trace(go.Scatter(x=[x_values[-1]], y=[y_values[-1]],
-                             name=f'extremum ({len(debug_list)-1} iterations)',
-    marker=dict(color="Blue", size=6), showlegend=True))
-    fig.update_layout(
-        legend=dict(
-            yanchor="top",
-            xanchor="left",
-            x=0.01,
-            y=0.99,
-        ),
-        xaxis_title=xtitle,
-        yaxis_title=ytitle,
-    )
-    fig.show()
-
-def rotate(mat, theta):
-    rot = [[math.cos(theta), math.sin(theta)],[-math.sin(theta), math.cos(theta)]]
-    return np.matmul(np.transpose(rot), np.matmul(mat, rot))
-
-def get_target_function(A, b):
-    def square_form(x, y):
-        return A[0][0] * x**2 + (A[0][1] + A[1][0]) * x * y + A[1][1] * y**2 + b[0] * x + b[1] * y
+    # Проверка правильно ли работает решение с fsolve. Т.к. оно занимает намного меньше рессурсов для выполнения.
+    # t = np.arange(t_start, t_end, 0.1)
+    # new_x = odeint(lambda t, x, *args: prepared_model_call(x, *args), init, t, tfirst=True, args=(tau, sigma))[-1]
     
-    return square_form
-
-def get_start_position(height, A, b):
-    D = b[0]**2 + 4 * A[0][0] * height
-    return (-b[0] + math.sqrt(D)) / (2 * A[0][0])
-
-
-
-
+    model.tau = tau
+    model.sigma = sigma
+    result = target_func(new_x)
+    
+    # сброс до базовых значений модели
+    model.set_default()
+    return result
 
 
+class ABSPlotFuncByTauAndSigma:
+    def __init__(self):
+        self.levels = 10
+        
+    def __call__(self):
+        x, y, z = self.count()
+        self.plot(x, y, z)
+        return self.prepared_func
+        
+    def prepared_func(self, tau, sigma):
+        return f_by_tau_sigma(self.model, self.target_func, tau, sigma)
+        
+    def count(self):
+        z = []
+        x = np.linspace(0, 1, 100)
+        y = np.linspace(0, 1, 100)
+        
+        for sigma in y:
+            z.append([])
+            for tau in x:
+                res = self.prepared_func(tau, sigma)
+                z[-1].append(res)
+                
+        return x, y, z
+        
+    def plot(self, x, y, z):
+        ax1 = plt.subplot(1, 1, 1)
+        ax1.set_xlabel('tau')
+        ax1.set_ylabel('sigma')
+        
+        ax1.contourf(x, y, z, levels=self.levels, cmap='plasma')
+        cs = ax1.contour(x, y, z, levels=self.levels, colors=np.zeros((self.levels, 3)))
+        ax1.clabel(cs)
+        
+        plt.show()
 
 
-# aph = 0.5
-# bt = 1.5
-# gm = 1.5
-# dt = 0.1
-# nu = 5.0
-# mu = 20.0
-# lmd = 20.0
-# ro = 10.0
-# A0 = 1.0
-# L0 = 1.0
-# D0 = 1.0
-# theta = (1 + aph * (bt - 1)) ** (-1)
-# def L1(data):
-# return data[3] * ((1 - aph) * A0 * data[1] / data[2]) ** (1 / aph)
-# def Q1(data):
-# return A0 * data[3] ** aph * L1(data) ** (1 - aph)
-# def D1(data):
-# return D0 * math.exp(-bt * data[1]) * data[5] / (data[1] + data[5])
-# def S1(data):
-# return L0 * (1 - math.exp(-gm * data[2])) * data[2] / (data[2] + data[6]);
-# def I1(data, tau):
-# # print(tau)
-# return (1 - tau) * (1 - theta) * data[0]
-# def G1(data, tau):
-# return (1 - tau) * theta * data[0]
-# def L2(data):
-# return data[7] * ((1 - aph) * A0 * data[5] / data[6]) ** (1 / aph)
-# def Q2(data):
-# return A0 * data[7] ** aph * L2(data) ** (1 - aph)
-# def D2(data):
-# return D0 * math.exp(-bt * data[5]) * data[1] / (data[1] + data[5])
-# def S2(data):
-# return L0 * (1 - math.exp(-gm * data[6])) * data[6] / (data[2] + data[6])
-# def I2(data):
-# return (1 - theta) * data[4]
-# def G2(data):
-# return theta * data[4]
-# #
-# def T(data, tau):
-# return tau * data[0]
-# def G(data, tau, sigma):
-# return (1 - sigma) * tau * data[0]
-# def calculate(data, *args):
-# result = [0, 0, 0, 0, 0, 0, 0, 0]
-# result[0] = (data[1] * min(Q1(data), D1(data)) - data[2] * min(L1(data), S1(data)) - data[0]) /
-# nu
-# result[1] = (D1(data) - Q1(data)) / mu
-# result[2] = (L1(data) - S1(data)) / lmd
-# result[3] = -dt * data[3] + I1(data, args[0])
-# result[4] = (math.exp(-ro * args[1] * T(data, args[0])) * data[5] * min(Q2(data), D2(data)) -
-# data[6] * min(L2(data), S2(data)) - data[4]) / nu
-# result[5] = (D2(data) - Q2(data)) / mu
-# result[6] = (L2(data) - S2(data)) / lmd
-# result[7] = -dt * data[7] + I2(data)
-# return result
-# def profit(tau, sigma):
-# initial = [0.0, 0.5, 0.25, 0.1,
-# 0.0, 0.5, 0.25, 0.1]
-# stationary = fsolve(calculate, x0=initial, args=(tau, sigma))
-# return -G(stationary, tau, sigma)
+    
 
-
-
-
-
-
-
-
-
-#
-x0, y0 = 3, 3
-eps = 0.001
-e = 100
 A = [[2, 1], [1, 4]]
-b = [0, 0]
+# e = 100
 # A = [[1, 0], [0, e]]
-# A = rotate(A, math.pi / 4)
-# b = [0, 0]
-#
-# height = 10
-# x0 = get_start_position(height, A, b)
-#
-bounds = [[-6, 6], [-6, 6]]
-
-to_minimise = get_target_function(A, b)
-debug_list = []
-
-f = lambda p: to_minimise(*p)
-init_p = np.array([x0, y0])
-x, y = gradient_descent(f, init_p, eps, bounds, debug_list)
-print("Extremum: ", x, y)
-draw_path(to_minimise, debug_list, bounds[0], 10)
-
-print("x = ", x, "y = ", y)
-print("f(x,y) = ", to_minimise(x, y))
-
-axis_titles = ["x", "y"]
-
-sq = 5
-bounds = (-sq, -sq), (sq, sq)
-
-resolution = 50
-ncontours = 15
-
-method_names = ["Gradient Descent"]
-
-# draw(to_minimise, axis_titles, bounds, resolution, ncontours, [debug_list], method_names)
-start, end = 0, math.pi / 2
-steps = 90
-eps = 0.001
-
-epsilons = [1, 5, 10, 20, 100]
-
-# fig = go.Figure()
-# for epsilon in epsilons:
-#     A = [[1, 0], [0, epsilon]]
-#     b = [0, 0]
-#     angles = np.linspace(start, end, steps)
-#     height = epsilon
-
-#     stats = []
-#     for theta in angles:
-#         rotA, rotb = rotate(A, theta), b
-#         debug_list = []
-
-#         to_minimise = get_target_function(rotA, rotb)
-#         x0 = get_start_position(height, rotA, rotb)
-
-#         x, y = gradient_descent(to_minimise, (x0, 0), eps, None, debug_list)
-
-#     stats.append(len(debug_list) - 1)
-#     theta = angles[len(angles) // 2 + 1]
-#     rotA, rotb = rotate(A, theta), b
-#     debug_list = []
-#     to_minimise = get_target_function(rotA, rotb)
-#     x0 = get_start_position(height, rotA, rotb)
-#     x, y = gradient_descent(to_minimise, (x0, 0), eps, None, debug_list)
-#     axis_titles = ["x","y"]
-#     sq = 10
-#     bounds = (-sq, -sq), (sq, sq)
-#     res = 50
-#     draw_path(to_minimise, debug_list, (-4, 4), 10)
+b = [0, 0]
+model = EconomicModel()
+# target_func = lambda p: test_func(*p, A, b)
+target_func = lambda p: f_by_tau_sigma(model, model.G, *p)
 
 
-#     # fig.add_trace(go.Scatter(x=angles, y=stats,
-#     # mode='lines',
-#     # name=f'e = {epsilon}'))
-#     #
-#     # fig.update_layout(
-#     # xaxis_title="Angle",
-#     # yaxis_title="Number of iterations",
-#     # )
-#     #
+class GraphicWidget(QWidget):
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
+        
+        self.plot_layout = QVBoxLayout(self)
+        
+        self._figure = Figure(facecolor='#20242d')
+        self._canvas = FigureCanvas(self._figure)
+        self._axis = self._figure.add_subplot(111)
+        self._init_axis()
+        self._canvas.draw()
+        self.toolbar = NavigationToolbar(self._canvas, self)
+        
+        self.plot_layout.addWidget(self._canvas)
+        self.plot_layout.addWidget(self.toolbar)
+        
+        self.levels = 10
+        self.contour_type = 'line'
+        self.max_count_init = [0, 0]
+        
+        self.is_legend = True
+        self.number_of_max_points = 0
+        
+        self._canvas.mpl_connect('button_press_event', self.mpl_on_click)
+        
+        self.func = target_func
+        self.is_max = True
+        
+    def mpl_on_click(self, event):
+        if event.dblclick:
+            x, y = event.xdata, event.ydata
+            points = self.count_max(x, y)
+            self.plot_path(points)
+        
+    def _init_axis(self):
+        color = '#ffffff'
+        
+        self._axis.tick_params(axis='x', colors=color)
+        self._axis.tick_params(axis='y', colors=color)
+        
+        self._axis.xaxis.label.set_color(color)
+        self._axis.yaxis.label.set_color(color)
+        
+    def _clear_plot(self):
+        self.number_of_max_points = 0
+        self._axis.clear()
+        
+    def update_plot(self):
+        self._clear_plot()
+        self._axis.set_xlabel('X')
+        self._axis.set_ylabel('Y')
+            
+        params = self._get_params()
+        data = self._count_data()
+        plot_levels(self._figure, self._axis, params, data, self.levels, contour_type=self.contour_type)
+        
+        self._canvas.draw()
+        self._canvas.flush_events()
+        
+    def set_grid(self, grid):
+        self.x, self.y = grid
+        
+    def set_exp(self, expression):
+        ...
+        # self.expression = expression
+        
+    def plot_path(self, points):
+        self._axis.plot(
+            points[0], points[1],
+            color="blue",
+            zorder=1,
+            label=f'iterations ({self.number_of_max_points}): {points.shape[1]}'
+        )
+        self._axis.scatter(
+            points[0], points[1],
+            zorder=2,
+            color="blue",
+        )
+        self._axis.scatter(
+            points[0][0], points[1][0],
+            color="#00ff00",
+            zorder=2,
+            label=f"start [x={points[0][0]:.5f}, y={points[1][0]:.5f}] ({self.number_of_max_points})"
+        )
+        self._axis.scatter(
+            points[0][-1], points[1][-1],
+            color="#ff0000",
+            zorder=2,
+            label=f"extremum [x={points[0][-1]:.5f}, y={points[1][-1]:.5f}] ({self.number_of_max_points})"
+        )
+        
+        if self.is_legend:
+            self._axis.legend()
+            
+        self._canvas.draw()
+        self._canvas.flush_events()
+        
+        self.number_of_max_points += 1
+        
+    def _count_max(self):
+        eps = 0.001
+        bounds = [[self.x[0][0], self.x[-1][0]], [self.y[0][0], self.y[0][-1]]]
 
-# fig.show()  
-#
+        grad_iters = []
+        func = self.func
+        if self.is_max == True:
+            func = lambda *args, **kwargs: -self.func(*args, **kwargs)
+        
+        x, y = gradient_descent(func, self.max_count_init, eps, bounds=bounds, iterations=grad_iters)
+        
+        grad_iters = np.array(grad_iters)
+        return np.array([grad_iters[:, 0], grad_iters[:, 1]])
+            
+    def count_max(self, x, y):
+        self.max_count_init = [x, y]
+        return self._count_max()
+        
+    def _count_data(self):
+        data = []
+        for x in self.x[:, 0]:
+            data.append([])
+            for y in self.y[0]:
+                data[-1].append(self.func([x, y]))
+        
+        return np.array(data)
+        
+    def _get_params(self):
+        return {
+            0: {
+                'name': 'x',
+                'value': self.x,
+            },
+            1: {
+                'name': 'y',
+                'value': self.y,
+            }
+        }
+    
+    
+class MyUi_MainWindow(Ui_MainWindow):
+    def setupUi(self, MainWindow, *args, **kwargs):
+        super().setupUi(MainWindow, *args, **kwargs)
+        
+        self.graphic = GraphicWidget(MainWindow)
+        self.main_layout.insertWidget(0, self.graphic)
+        self.graphic.show()
+
+        self._init_defaults()
+        self._init_events()
+        
+        
+    def _count_grid(self):
+        xmin = float(self.x_min_edit.text())
+        xmax = float(self.x_max_edit.text())
+        
+        ymin = float(self.y_min_edit.text())
+        ymax = float(self.y_max_edit.text())
+        
+        return np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
+    
+    def _set_grid(self):
+        self.graphic.set_grid(self._count_grid())
+        
+    def _set_levels(self):
+        self.graphic.levels = self.levels_input.value()
+        
+    def _set_exp(self):
+        self.graphic.set_exp(self.exp_input.text())
+        
+    def _set_draw_type(self):
+        self.graphic.contour_type = self.draw_type_input.currentText()
+        
+    def _init_events(self):
+        self.draw_btn.clicked.connect(self.graphic.update_plot)
+        
+        self.x_min_edit.editingFinished.connect(self._set_grid)
+        self.x_max_edit.editingFinished.connect(self._set_grid)
+        self.y_min_edit.editingFinished.connect(self._set_grid)
+        self.y_max_edit.editingFinished.connect(self._set_grid)
+        
+        self.levels_input.editingFinished.connect(self._set_levels)
+        
+        self.exp_input.editingFinished.connect(self._set_exp)
+        
+        self.draw_type_input.currentTextChanged.connect(self._set_draw_type)
+        
+    def _init_defaults(self):
+        self.x_min_edit.setText(str(-6))
+        self.x_max_edit.setText(str(6))
+        self.y_min_edit.setText(str(-6))
+        self.y_max_edit.setText(str(6))
+        self._set_grid()
+        
+        self.levels_input.setValue(10)
+        self._set_levels()
+        
+        # test_exp = '-1.1*(x**2) - 1.5*(y**2) + 2*x*y + x + 5'
+        # self.exp_input.setText(test_exp)
+        self.exp_input.setEnabled(False)
+        # self._set_exp()
+        
+        self._set_draw_type()
 
 
+def main():
+    import sys
+    app = QApplication(sys.argv)
+
+    mainWindow = QMainWindow()
+
+    ui = MyUi_MainWindow()
+    ui.setupUi(mainWindow)
+
+    mainWindow.show()
+
+    app.exec()
 
 
-
-
-
-# to_minimise = profit
-# x0, y0 = 0.5, 0.5
-# eps = 0.01
-# bounds_vars = ((0.0, 1.0), (0.0, 1.0))
-# debug_list = []
-# x, y = gradient_descent(to_minimise, (x0, y0), eps, bounds_vars, debug_list)
-# print("x = ", x, "y = ", y)
-# print("f(x,y) = ", to_minimise(x, y))
-# axis_titles = ["tau", "sigma"]
-# sq = 1
-# bounds = (0.0, 0.0), (1.0, 1.0)
-# resolution = 50
-# ncontours = 15
-# method_names = ["Gradient Descent"]
-# print(debug_list)
-# f = np.vectorize(to_minimise)
-# draw_path(f, debug_list, (0, 1), 10, '$\\tau$', '$\sigma$')
+if __name__ == '__main__':
+    main()
