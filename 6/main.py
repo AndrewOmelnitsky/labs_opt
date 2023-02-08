@@ -39,7 +39,7 @@ class PredictionModel:
             hours = all_week_day_data['time'].unique()
             
             for j, hour in enumerate(hours):
-                all_data_in_hour = all_week_day_data[self._data['time'] == hour]
+                all_data_in_hour = all_week_day_data[all_week_day_data['time'] == hour]
                 sales = all_data_in_hour['All']
                 
                 self._template[i][j] = func(sales)  
@@ -240,7 +240,7 @@ def plot_traj_dynamic(df):
         
     plt.xlabel('Час')
     plt.ylabel('Продажі')
-    plt.bar(dates_p, sales)
+    plt.bar(dates_p, sales, color='black')
     plt.show()
     
 
@@ -329,7 +329,7 @@ def test_predict_for_template(df):
     model.training_model(df)
     
     
-    last_week_id = (df['week_id'].unique()[-1])
+    last_week_id = (df['week_id'].unique()[-2])
     losts = []
     for id_temp in range(last_week_id):
         t_data = df[df['week_id'] <= id_temp]
@@ -341,7 +341,7 @@ def test_predict_for_template(df):
         model.training_model(t_data)
         
     
-        day = 1
+        day = 2
         # print(r_data)
         target_date = r_data[r_data['week_day'] == day].iloc[-1]['date']
         target_data = r_data[r_data['date'] == target_date]
@@ -360,7 +360,9 @@ def test_predict_for_template(df):
         lost = model.count_lost(list(sales['All']), list(y))
         losts.append(lost)
         
-    plt.plot(range(last_week_id), losts)
+    plt.xlabel('Кількість тижнів для навчання')
+    plt.ylabel('Втрати')
+    plt.plot(range(1, last_week_id+1), losts)
     plt.show()
     
 
@@ -381,18 +383,19 @@ def test_predict_for_k(df):
     model.training_model(t_data)
     
 
-    day = 1
+    day = 0
     # print(r_data)
     target_date = r_data[r_data['week_day'] == day].iloc[-1]['date']
     target_data = r_data[r_data['date'] == target_date]
     
     
     losts = []
-    for id_temp in range(last_week_id):
+    for id_temp in range(last_week_id+1):
         y = []
         k = []
         # history_added = df[(df['week_id'] <= id_temp) & (df['week_day'] == day)]
-        history_added = df[(df['week_id'] <= id_temp)]
+        history_added = df[(df['week_id'] < id_temp) & (df['week_day'] == day)]
+        print(history_added)
         sales_traget = target_data['All']
         hours = target_data['time']
         for t, value in enumerate(sales_traget):
@@ -406,7 +409,9 @@ def test_predict_for_k(df):
         lost = model.count_lost(list(sales_traget), list(y))
         losts.append(lost)
         
-    plt.plot(range(last_week_id), losts)
+    plt.xlabel('Кількість тижнів для навчання')
+    plt.ylabel('Втрати')
+    plt.plot(range(last_week_id+1), losts)
     plt.show()
     
 
@@ -488,22 +493,18 @@ def main():
     model = PredictionModel()
     # model.training_model(df, 'average')
     model.training_model(df)
-    # model.plot_statistic([0, 1, 2, 6,])
-    # model.plot_statistic('__all__')
     
     # plot_traj_dynamic(df)
     # plot_flow_of_customers(df)
     # plot_weekly_flow_of_customers(df)
     # plot_autocorrelation(df)
+    # model.plot_statistic('__all__')
     
-    test_predict(df_res)
-    # test_predict_for_template(df_res)
-    # test_predict_for_k(df_res)
+    # test_predict(df_res)
+    test_predict_for_template(df_res)
+    test_predict_for_k(df_res)
     # test_predict_adapt(df_res)
     
-    
-    
-# значення прогнозу для години i. А  - значення рельних данних для години i.
 
 
 if __name__ == '__main__':

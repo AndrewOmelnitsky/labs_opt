@@ -117,11 +117,11 @@ class ABSPlotFuncByTauAndSigma:
         x = np.linspace(0, 1, 100)
         y = np.linspace(0, 1, 100)
         
-        for i, sigma in enumerate(y):
+        for sigma in y:
             z.append([])
             for tau in x:
                 res = self.prepared_func(tau, sigma)
-                z[i].append(res)
+                z[-1].append(res)
                 
         return x, y, z
         
