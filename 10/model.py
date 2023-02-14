@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from statsmodels.graphics import tsaplots
 from datetime import datetime, timedelta
 import math
+import functools
 
 
 class PredictionModel:
@@ -223,103 +224,7 @@ class PredictionModel:
             lost += abs(real[i] - predicted[i])
             
         return lost
-            
-            
-def set_title(title: str):
-    plt.get_current_fig_manager().set_window_title(title)
-       
-       
-def plot_traj_dynamic(df):
-    sales = []
-    dates = df['date'].unique()
-    dates_p = []
-    for date in dates:
-        data_date = df[df['date'] == date]
-        sales.append(sum(data_date['All']))
-        dates_p.append(datetime.strptime(date, "%Y-%m-%d").date())
-        
-    plt.xlabel('Час')
-    plt.ylabel('Продажі')
-    plt.bar(dates_p, sales, color='black')
-    plt.show()
     
-
-def plot_flow_of_customers(df):
-    sales = df['All']
-    hours = df['time']
-    plt.xlabel('Години')
-    plt.ylabel('Продажі')
-    plt.scatter(hours, sales)
-    plt.show()
-
-
-def plot_weekly_flow_of_customers(df):
-    weeks = df['week_id'].unique()
-    for week in weeks:
-        week_data = df[df['week_id'] == week]
-        hours = week_data['time'] + 24 * week_data['week_day']
-        sales = week_data['All']
-        plt.plot(hours, sales, color='black', linewidth=0.7)
-    
-    plt.show()
-
-
-def plot_autocorrelation(df):
-    x = df['All']
-    fig = tsaplots.plot_acf(x, lags=35)
-    plt.show()
-    
-    
-def test_predict(df):
-    df = df.copy()
-    model = PredictionModel()
-    model.training_model(df)
-    
-    day = 0
-    idx = 7
-    last_week_id = (df['week_id'].unique()[-1])
-    t_data = df[df['week_id'] != last_week_id]
-    r_data = df[df['week_id'] == last_week_id]
-    # print(t_data)
-    # print(r_data)
-    
-    
-    model.training_model(t_data)
-    # model.training_model(t_data, 'average')
-    # model.plot_statistic('__all__')
-    
-  
-    # print(r_data)
-    target_date = r_data[r_data['week_day'] == day].iloc[-1]['date']
-    target_data = r_data[r_data['date'] == target_date]
-
-    # print(f'{target_date=}')
-    # print(target_data)
-    
-    y = []
-    k = []
-    sales = target_data
-    hours = target_data['time']
-    for t in range(len(sales)):
-        y.append(model.predict(day, t, sales.iloc[:t]))
-        k.append(model._count_k(day, sales.iloc[:t]))
-        
-    ax = plt.subplot(1, 1, 1)
-    ax_sub = ax.twinx()
-    ax_sub.set_ylim(-1.5, 1.5)
-    mark = '.'
-    ax.plot(hours, sales['All'], marker=mark, label='Реальні', color='r')
-    ax.plot(hours, y, marker=mark, label='Прогноз', color='black')
-    ax.plot(hours, model._template[day], marker=mark, label='Шаблон', color='b')
-    ax_sub.plot(hours, k, marker=mark, label='Коефіцієнт k', color='g')
-    # print(sales, y)
-    lost = model.count_lost(list(sales['All']), list(y))
-    print(f'lost = {lost}')
-    set_title(f'date:{target_date}    week day:{model.week_day_by_int[day]}')
-    
-    ax.legend()
-    ax_sub.legend()
-    plt.show()
     
     
 def test_predict_for_template(df):
@@ -415,97 +320,59 @@ def test_predict_for_k(df):
     plt.show()
     
 
-def test_predict_adapt(df):
-    df = df.copy()
-    model = PredictionModel()
-    model.training_model(df)
-    
-    
-    last_week_id = (df['week_id'].unique()[-1])
-    t_data = df[df['week_id'] != last_week_id]
-    r_data = df[df['week_id'] == last_week_id]
-    
-    # last_week_id = (df['week_id'].unique()[-2])
-    # t_data = df[df['week_id'] < last_week_id]
-    # r_data = df[df['week_id'] == last_week_id]
-    # print(t_data)
-    # print(r_data)
-    
-    
-    model.training_model(t_data)
-    # model.training_model(t_data, 'average')
-    # model.plot_statistic('__all__')
-    
-  
-    day = 1
-    # day = 4
-    # print(r_data)
-    target_date = r_data[r_data['week_day'] == day].iloc[-1]['date']
-    target_data = r_data[r_data['date'] == target_date]
 
-    # print(f'{target_date=}')
-    # print(target_data)
-    
-    y = []
-    y1 = []
-    k = []
-    sales = target_data
-    hours = target_data['time']
-    template = []
-    for t in range(len(sales)):
-        t_id = []
-        y.append(model.predict(day, t, sales.iloc[:t], is_adapt_template=True, template_id=t_id))
-        y1.append(model.predict(day, t, sales.iloc[:t]))
-        template.append(t_id[0])
-        k.append(model._count_k(t_id[0], sales.iloc[:t]))
-        
-    print(f'templates ids: {template}')
-    template_prep = [model._template[ti][i] for i, ti in enumerate(template)]
-        
-    ax = plt.subplot(1, 1, 1)
-    ax_sub = ax.twinx()
-    ax_sub.set_ylim(-1.5, 1.5)
-    mark = '.'
-    ax.plot(hours, sales['All'], marker=mark, label='Реальні', color='r')
-    ax.plot(hours, y, marker=mark, label='Прогноз', color='black')
-    ax.plot(hours, y1, marker=mark, label='Прогноз за шаблоном поточного дня', color='#FF8833')
-    ax.plot(hours, template_prep, marker=mark, label='Шаблон побудований адаптивно', color='b')
-    ax.plot(hours, model._template[day], marker=mark, label='Шаблон поточного дня', color='y')
-    ax_sub.plot(hours, k, marker=mark, label='Коефіцієнт k', color='g')
-    # print(sales, y)
-    lost = model.count_lost(list(sales['All']), list(y))
-    lost1 = model.count_lost(list(sales['All']), list(y1))
-    print(f'lost adapt = {lost}')
-    print(f'lost = {lost1}')
-    set_title(f'date:{target_date}; \tweek day:{model.week_day_by_int[day]}')
-    
-    ax.legend()
-    ax_sub.legend()
-    plt.show()
-
-
-def main():
-    df = pd.read_csv('/home/blackgolyb/Documents/labs_opt/6/data.csv', sep=';')
+def get_target_func():
     df = pd.read_csv('data.csv', sep=';')
     df = df.set_index('index')
-    df_res = df.copy()
+    # df_res = df.copy()    
     
+    # df = df.copy()
     model = PredictionModel()
-    # model.training_model(df, 'average')
     model.training_model(df)
     
-    # plot_traj_dynamic(df)
-    # plot_flow_of_customers(df)
-    # plot_weekly_flow_of_customers(df)
-    # plot_autocorrelation(df)
-    # model.plot_statistic('__all__')
-    
-    test_predict(df_res)
-    # test_predict_for_template(df_res)
-    # test_predict_for_k(df_res)
-    # test_predict_adapt(df_res)
-    
+    day = 0
+    last_week_id = (df['week_id'].unique()[-1])
 
+        
+    @functools.cache
+    def func(id_temp, week_id):
+        t_data = df[df['week_id'] < id_temp]
+        r_data = df[df['week_id'] == last_week_id]
+        
+        model = PredictionModel()
+        model.training_model(t_data)
 
-if __name__ == '__main__':
-    main()
+        target_date = r_data[r_data['week_day'] == day].iloc[-1]['date']
+        target_data = r_data[r_data['date'] == target_date]
+        
+        y = []
+        history_added = df[(df['week_id'] < week_id) & (df['week_day'] == day)]
+        sales_traget = target_data['All']
+        # print(model._template)
+        # print(t_data)
+        # print(history_added)
+        for t, value in enumerate(sales_traget):
+            sales = target_data.iloc[:t]
+            y.append(model.predict(day, t, sales, history_added))
+            
+        lost = model.count_lost(list(sales_traget), list(y))
+        return lost
+    
+    def target_func(template_n, k_n):
+        # print(template_n, k_n)
+        template_n = round(template_n)
+        k_n = round(k_n)
+        return func(template_n, k_n)
+        
+    return target_func
+        
+
+func = get_target_func()
+lost = []
+print(func(7, 0))
+# for i in range(0, 17):
+#     lost.append(func(i, 0))
+    
+# print(min(lost), lost.index(min(lost)))
+# print(lost[lost.index(min(lost))])
+# 7

@@ -6,13 +6,13 @@ import sip
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
+from matplotlib.backend_bases import MouseButton
 import matplotlib.pyplot as plt
 import sympy
 from numpy import pi
 from collections.abc import Callable
 from scipy.integrate import odeint, solve_ivp
 from scipy.optimize import fsolve
-
 
 
 # import UI
@@ -22,7 +22,8 @@ from py_UI.app_ui import Ui_MainWindow
 # from count_diff import count_function_diff, get_grad_func
 
 from services.model import EconomicModel
-from method import test_func, gradient_descent
+from method import test_func, gradient_descent, get_rotated_matrix
+from model import get_target_func
 
 
 
@@ -93,52 +94,28 @@ def f_by_tau_sigma(
     return result
 
 
-class ABSPlotFuncByTauAndSigma:
-    def __init__(self):
-        self.levels = 10
-        
-    def __call__(self):
-        x, y, z = self.count()
-        self.plot(x, y, z)
-        return self.prepared_func
-        
-    def prepared_func(self, tau, sigma):
-        return f_by_tau_sigma(self.model, self.target_func, tau, sigma)
-        
-    def count(self):
-        z = []
-        x = np.linspace(0, 1, 100)
-        y = np.linspace(0, 1, 100)
-        
-        for sigma in y:
-            z.append([])
-            for tau in x:
-                res = self.prepared_func(tau, sigma)
-                z[-1].append(res)
-                
-        return x, y, z
-        
-    def plot(self, x, y, z):
-        ax1 = plt.subplot(1, 1, 1)
-        ax1.set_xlabel('tau')
-        ax1.set_ylabel('sigma')
-        
-        ax1.contourf(x, y, z, levels=self.levels, cmap='plasma')
-        cs = ax1.contour(x, y, z, levels=self.levels, colors=np.zeros((self.levels, 3)))
-        ax1.clabel(cs)
-        
-        plt.show()
-
-
     
 
-A = [[2, 1], [1, 4]]
-# e = 100
-# A = [[1, 0], [0, e]]
-b = [0, 0]
-model = EconomicModel()
+# A = [[2, 1], [1, 2]]
+# b = [0, 0]
 # target_func = lambda p: test_func(*p, A, b)
-target_func = lambda p: f_by_tau_sigma(model, model.G, *p)
+
+
+# model = EconomicModel()
+# target_func = lambda p: f_by_tau_sigma(model, model.G, *p)
+
+
+# es = [1, 10, 100]
+# e = es[2]
+# angle = math.pi/2
+# A = [[1, 0], [0, e]]
+# b = [0, 0]
+# func = get_rotated_matrix(angle)(test_func)
+# target_func = lambda p: func(*p, A, b)
+
+# 0 16
+func = get_target_func()
+target_func = lambda p: func(*p) 
 
 
 class GraphicWidget(QWidget):
@@ -167,11 +144,14 @@ class GraphicWidget(QWidget):
         self._canvas.mpl_connect('button_press_event', self.mpl_on_click)
         
         self.func = target_func
+        # self.is_max = False
         self.is_max = True
         
     def mpl_on_click(self, event):
         if event.dblclick:
             x, y = event.xdata, event.ydata
+            if event.button is MouseButton.RIGHT:
+                x, y = 1, 1
             points = self.count_max(x, y)
             self.plot_path(points)
         
@@ -250,6 +230,7 @@ class GraphicWidget(QWidget):
             func = lambda *args, **kwargs: -self.func(*args, **kwargs)
         
         x, y = gradient_descent(func, self.max_count_init, eps, bounds=bounds, iterations=grad_iters)
+        print(f'Extremum: x={x} y={y} f(x)={self.func([x, y])}')
         
         grad_iters = np.array(grad_iters)
         return np.array([grad_iters[:, 0], grad_iters[:, 1]])
