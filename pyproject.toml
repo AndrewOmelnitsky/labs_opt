@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "labs-opt"
+version = "0.1.0"
+description = ""
+authors = ["Blackgolyb <andrejomelnickij@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "services" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = "^1.25.2"
+pyqt5 = "^5.15.9"
+matplotlib = "^3.7.2"
+sympy = "^1.12"
+scipy = "^1.11.2"
+pandas = "^2.1.0"
+statsmodels = "^0.14.0"
+colorama = "^0.4.6"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
